@@ -1,0 +1,123 @@
+package org.ulitzky.devices;
+
+import org.jspecify.annotations.NonNull;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.transaction.annotation.Transactional;
+import org.ulitzky.devices.api.v1.controller.DeviceController;
+import org.ulitzky.devices.api.v1.resource.DeviceResource;
+import org.ulitzky.devices.api.v1.resource.DeviceState;
+import org.ulitzky.devices.exception.DeviceNotFoundException;
+import org.ulitzky.devices.exception.DeviceNotValidForRequestedChangeException;
+import org.ulitzky.devices.util.TestDataFactory;
+
+import java.util.List;
+import java.util.UUID;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+@SpringBootTest
+@Transactional
+class DevicesApplicationIntegrationTests {
+
+    @Autowired
+    private DeviceController deviceController;
+
+    @Test
+    void testCreateDeviceAndFetchItByAllMeans() throws DeviceNotFoundException {
+        List<DeviceResource> foundAllBeforeCreation = deviceController.findAllBy(null, null);
+        assertTrue(foundAllBeforeCreation.isEmpty());
+
+        DeviceResource newDevice = createAndFetchDevice();
+
+        List<DeviceResource> foundAllAfterCreation = deviceController.findAllBy(null, null);
+        assertEquals(1, foundAllAfterCreation.size());
+        assertEquals(newDevice.getId(), foundAllAfterCreation.getFirst().getId());
+
+        List<DeviceResource> foundByBrandAfterCreation = deviceController.findAllBy(newDevice.getBrand(), null);
+        assertEquals(1, foundByBrandAfterCreation.size());
+        assertEquals(newDevice.getId(), foundByBrandAfterCreation.getFirst().getId());
+        assertEquals(newDevice.getBrand(), foundByBrandAfterCreation.getFirst().getBrand());
+
+        List<DeviceResource> foundByStateAfterCreation = deviceController.findAllBy(null, newDevice.getState().toString());
+        assertEquals(1, foundByStateAfterCreation.size());
+        assertEquals(newDevice.getId(), foundByStateAfterCreation.getFirst().getId());
+        assertEquals(newDevice.getState().toString(), foundByStateAfterCreation.getFirst().getState().toString());
+
+        List<DeviceResource> foundByBrandAndStateAfterCreation = deviceController.findAllBy(newDevice.getBrand(), newDevice.getState().toString());
+        assertEquals(1, foundByBrandAndStateAfterCreation.size());
+        assertEquals(newDevice.getId(), foundByBrandAndStateAfterCreation.getFirst().getId());
+        assertEquals(newDevice.getBrand(), foundByBrandAndStateAfterCreation.getFirst().getBrand());
+        assertEquals(newDevice.getState().toString(), foundByBrandAndStateAfterCreation.getFirst().getState().toString());
+    }
+
+
+    @Test
+    void testDeviceIsNotFoundAfterDelete() throws DeviceNotFoundException, DeviceNotValidForRequestedChangeException {
+        DeviceResource newDevice = createAndFetchDevice();
+
+        deviceController.delete(newDevice.getId());
+
+        List<DeviceResource> foundAllAfterDelete = deviceController.findAllBy(null, null);
+        assertTrue(foundAllAfterDelete.isEmpty());
+
+        List<DeviceResource> foundByBrandAfterDelete = deviceController.findAllBy(newDevice.getBrand(), null);
+        assertTrue(foundByBrandAfterDelete.isEmpty());
+
+        List<DeviceResource> foundByStateAfterDelete = deviceController.findAllBy(null, newDevice.getState().toString());
+        assertTrue(foundByStateAfterDelete.isEmpty());
+
+        List<DeviceResource> foundByBrandStateAfterDelete = deviceController.findAllBy(newDevice.getBrand(), newDevice.getState().toString());
+        assertTrue(foundByBrandStateAfterDelete.isEmpty());
+    }
+
+    @Test
+    void testCannotDeleteDeviceInUse() {
+        DeviceResource deviceData = TestDataFactory.inUseDeviceResourceForCreation();
+        DeviceResource created = deviceController.create(deviceData);
+        assertEquals(DeviceState.IN_USE, created.getState());
+
+        assertThrows(DeviceNotValidForRequestedChangeException.class, () -> deviceController.delete(created.getId()));
+    }
+
+    @Test
+    void testFindByIdForNotFoundDevice() {
+        assertThrows(DeviceNotFoundException.class, () -> deviceController.findById(UUID.randomUUID().toString()));
+    }
+
+    @Test
+    void testDeleteForNotFoundDevice() {
+        assertThrows(DeviceNotFoundException.class, () -> deviceController.delete((UUID.randomUUID().toString())));
+    }
+
+    @Test
+    void testPatchForNotFoundDevice() {
+        assertThrows(DeviceNotFoundException.class, () -> deviceController.patch(UUID.randomUUID().toString(), "New Name", null, null));
+    }
+
+
+    private @NonNull DeviceResource createAndFetchDevice() throws DeviceNotFoundException {
+        DeviceResource deviceData = TestDataFactory.validDeviceResourceForCreation();
+        DeviceResource created = deviceController.create(deviceData);
+        assertNotNull(created.getId());
+        assertNotNull(created.getDateCreated());
+        assertEquals(deviceData.getName(), created.getName());
+        assertEquals(deviceData.getBrand(), created.getBrand());
+        assertEquals(deviceData.getState().toString(), created.getState().toString());
+
+        DeviceResource fetchedById = deviceController.findById(created.getId());
+        assertNotNull(fetchedById);
+        assertEquals(fetchedById.getId(), created.getId());
+        assertEquals(fetchedById.getName(), created.getName());
+        assertEquals(fetchedById.getBrand(), created.getBrand());
+        assertEquals(fetchedById.getState(), created.getState());
+        assertEquals(fetchedById.getDateCreated(), created.getDateCreated());
+
+        return fetchedById;
+    }
+
+}
