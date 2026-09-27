@@ -180,14 +180,3 @@ covers a well-formed but non-existent `UUID`.
   `String`↔`UUID` `id` conversion: a valid `UUID`↔`String` round trip in both directions, and a
   malformed id `String` mapping to `null` rather than throwing.
 
-## Recovery note (2026-09-27)
-
-This project's working tree (everything under `device-service/`) was unexpectedly wiped from disk
-mid-session, with no git remote, no Trash copy, and no local Time Machine snapshot available. The
-files below were rebuilt from this document's own architecture description plus the handful of
-files still held verbatim in the assistant's conversation context at the time
-(`DeviceResource.java`, `DeviceController.java`, this file). Everything else — `DeviceService`,
-`Device`, both `DeviceState` enums, the exceptions, the mapper, the repository, build files, and
-the entire test suite — is a best-effort reconstruction from this spec, not a recovery of the
-original code. Treat it as a fresh implementation to review, not as ground truth of what was there
-before.
