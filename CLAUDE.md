@@ -78,6 +78,13 @@ Layered structure under `org.ulitzky.devices`:
   `throws DeviceNotValidForRequestedChangeException`. Neither is caught in the controller — both are checked
   exceptions that propagate to the client via their `@ResponseStatus`.
 - `service/` — `DeviceService` holds all business logic (create/find/update/patch/delete).
+  `update`/`patch`/`delete` are `@Transactional`, so each method's `findById` read and its
+  `save`/`delete` write run as a single transaction instead of two separate round trips. Logs via
+  SLF4J (`LoggerFactory.getLogger`, already on the classpath transitively through
+  `spring-boot-starter-web`'s Logback binding — no extra dependency needed): INFO for
+  create/update/patch/delete outcomes, WARN for a not-found id, a rejected change on a non-mutable
+  device, or an invalid `state` string. Console format/level (`INFO` root) is configured in
+  `src/main/resources/logback.xml`.
   `service/mapper/DeviceMapper` is a MapStruct interface (`componentModel = SPRING`) that converts
   between `Device` (entity) and `DeviceResource` (API DTO); the implementation is generated at
   build time via the `mapstruct-processor` annotation processor — regenerate by rebuilding rather
@@ -86,11 +93,14 @@ Layered structure under `org.ulitzky.devices`:
   (`@Schema(accessMode = READ_ONLY)`) and unused by `DeviceService.create`/`update`, so a bad
   client-supplied id is simply dropped rather than causing a 500.
 - `exception/` — `DeviceNotFoundException` (checked, `@ResponseStatus(NOT_FOUND)`) thrown by
-  `DeviceService.findById`/`update`/`patch`/`delete` when the id doesn't exist, and
+  `DeviceService.findById`/`update`/`patch`/`delete` when the id doesn't exist;
   `DeviceNotValidForRequestedChangeException` (checked, `@ResponseStatus(BAD_REQUEST)`) thrown by
   `DeviceService.update`/`patch`/`delete` when the device's state isn't valid for the requested
-  change (see `DeviceState.isValidForDeletionOrUpdate()` below). Both propagate straight through
-  the controller layer.
+  change (see `DeviceState.isValidForDeletionOrUpdate()` below); and
+  `InvalidDeviceStateException` (checked, `@ResponseStatus(BAD_REQUEST)`) thrown by
+  `DeviceService.parseDeviceState`, used by `findAllBy` and `patch`, when a `state` query param
+  string doesn't match a `DeviceState` constant. All three propagate straight through the
+  controller layer uncaught.
 - `model/` — `Device` JPA entity (H2, UUID primary key generated via `GenerationType.UUID`) and
   `model/enums/DeviceState` — a **second, separate** `DeviceState` enum (no `description` field,
   but each constant carries a `validForDeletionOrUpdate` boolean, e.g. `IN_USE(false)`) used by the
@@ -113,12 +123,15 @@ Layered structure under `org.ulitzky.devices`:
 
 `DeviceController` → maps `DeviceResource` to `Device` via `DeviceMapper` → `DeviceService`
 (business logic, talks to `DeviceRepository`) → maps result `Device` back to `DeviceResource` for
-the response. IDs cross the API boundary as `String` but are stored/queried as `UUID` in the
-entity and repository. A malformed path id is parsed via `UUID.fromString` in
-`DeviceService.findById` and converted to `DeviceNotFoundException` (404) rather than propagating
-the raw `IllegalArgumentException`; a malformed body `id` (on create/update) is parsed by
-`DeviceMapper.map(String)`, which treats it the same as a missing id and maps it to `null` (see
-`DeviceMapper` above).
+the response. Body `id`s (on create/update) cross the API boundary as `String`, parsed by
+`DeviceMapper.map(String)`, which treats a malformed or blank id the same as a missing one and maps
+it to `null` (see `DeviceMapper` above) — that mapped entity's `id` is itself ignored by
+`mapResourceToEntity` (`@Mapping(target = "id", ignore = true)`), so a client-supplied body id can
+never affect which row is created or updated. Path `{deviceId}` is instead bound directly as `UUID`
+on the controller methods, so a malformed path id is rejected by Spring MVC itself (a generic 400
+`MethodArgumentTypeMismatchException`) before the controller or `DeviceService` ever runs — it does
+**not** go through `DeviceService.findById`'s `DeviceNotFoundException` (404) path, which only
+covers a well-formed but non-existent `UUID`.
 
 ### Endpoints (`/v1/device`)
 
@@ -163,6 +176,9 @@ the raw `IllegalArgumentException`; a malformed body `id` (on create/update) is 
 - `util/TestDataFactory` — shared builder/factory for constructing test `Device`/`DeviceResource`
   instances (`validDevice()`, `validDeviceResource()`, plus a no-id `validDeviceResourceForCreation()`
   for creation-flow integration tests); use it instead of hand-rolling fixtures in new tests.
+- `service/mapper/DeviceMapperTest` — `@SpringBootTest` covering `DeviceMapper`'s manual
+  `String`↔`UUID` `id` conversion: a valid `UUID`↔`String` round trip in both directions, and a
+  malformed id `String` mapping to `null` rather than throwing.
 
 ## Recovery note (2026-09-27)
 
