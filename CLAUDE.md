@@ -5,8 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Overview
 
 Spring Boot component for device management (CRUD over a `Device` resource — name, brand, state,
-creation date), backed by an in-memory H2 database. Java 21 / Spring Boot 4.1.1 / Gradle (Kotlin
-DSL).
+creation date). The running app (`bootRun`, the Docker image) connects to a local Postgres
+database; tests run against an in-memory H2 database instead (see below). Java 21 / Spring Boot
+4.1.1 / Gradle (Kotlin DSL).
 
 Keep this file in sync: after any change to endpoints, architecture, test coverage, dependencies, or configuration, update the relevant section before finishing.
 
@@ -27,18 +28,43 @@ Keep this file in sync: after any change to endpoints, architecture, test covera
   docker build -t device-service .
   docker run -p 8080:8080 device-service
   ```
-- `docker-compose.yml` — single `device-service` service building from the `Dockerfile`, mapping
-  port 8080. Run with `docker compose up --build`.
-- H2 console: `http://localhost:8080/h2-console` (JDBC URL `jdbc:h2:mem:testdb`, user `sa`, no
-  password) — `spring.h2.console.enabled=true` in `application.properties`.
+- `docker-compose.yml` — two services: `postgres` (official `postgres:16` image, db/user/password
+  all `devices`, port 5432 published to the host, named volume `postgres-data` for persistence, a
+  `pg_isready` healthcheck) and `device-service` (builds from the `Dockerfile`, port 8080, waits on
+  `postgres`'s healthcheck via `depends_on: condition: service_healthy`, and sets `DB_HOST=postgres`
+  — see Database below for why). Run the whole stack with `docker compose up --build`; publishing
+  Postgres's port also means `docker compose up postgres` alone plus a host-side `./gradlew
+  bootRun` works, since `localhost:5432` then reaches the same container.
 - Swagger UI: `http://localhost:8080/swagger-ui/index.html` (raw OpenAPI JSON at
   `/v3/api-docs`) — `springdoc-openapi-starter-webmvc-ui` is declared in `build.gradle.kts` and
   `springdoc.swagger-ui.enabled=true` in `application.properties`. API metadata (title/description/
   version) comes from `config/OpenApiConfig` (`OpenAPI` bean); `DeviceController` carries
   `@Tag`/`@Operation`/`@Parameter` annotations and `DeviceResource` carries `@Schema` annotations to
   enrich the generated docs.
-- DB schema is recreated on every run (`spring.jpa.hibernate.ddl-auto=create-drop`); there is no
-  persistent data between restarts and no `data.sql` seed file.
+
+### Database
+
+Two datasource configs, kept intentionally separate by resource file rather than by Spring
+profile — `src/main/resources/application.properties` (used by `bootRun` and the Docker image) and
+`src/test/resources/application.properties` (used by every test, since Gradle puts test resources
+ahead of main resources on the test classpath, so the test file's `application.properties` fully
+shadows main's rather than merging with it):
+
+- **Main (`bootRun`/Docker) → Postgres**: `runtimeOnly("org.postgresql:postgresql")` in
+  `build.gradle.kts`; `spring.datasource.url=jdbc:postgresql://${DB_HOST:localhost}:5432/devices`,
+  user/password `devices`/`devices`, `spring.jpa.hibernate.ddl-auto=update` (schema is
+  created/updated in place, not dropped — data persists across restarts). Only the hostname varies
+  between the two ways of running the app: bare `bootRun` defaults `DB_HOST` to `localhost` (needs
+  a Postgres reachable there, e.g. `docker compose up postgres`, or any local install, with a
+  `devices` database and matching credentials); `docker-compose.yml` sets `DB_HOST=postgres` for
+  the Docker image, since a plain `docker run` of the image alone won't have anything named
+  `postgres` to resolve. Port, db name, and credentials stay identical in both paths.
+- **Tests → in-memory H2** (unchanged from before): `testRuntimeOnly("com.h2database:h2")`;
+  `spring.datasource.url=jdbc:h2:mem:testdb`, user `sa`, no password,
+  `spring.jpa.hibernate.ddl-auto=create-drop` (schema recreated fresh for every test run, no
+  persistent data, no `data.sql` seed file). H2 console: `http://localhost:8080/h2-console` (only
+  reachable while a test that boots the full Spring context, e.g.
+  `DevicesApplicationIntegrationTests`, is running).
 
 ## Architecture
 
