@@ -10,6 +10,7 @@ import org.ulitzky.devices.api.v1.resource.DeviceResource;
 import org.ulitzky.devices.api.v1.resource.DeviceState;
 import org.ulitzky.devices.exception.DeviceNotFoundException;
 import org.ulitzky.devices.exception.DeviceNotValidForRequestedChangeException;
+import org.ulitzky.devices.exception.InvalidDeviceStateException;
 import org.ulitzky.devices.util.TestDataFactory;
 
 import java.util.List;
@@ -28,7 +29,7 @@ class DevicesApplicationIntegrationTests {
     private DeviceController deviceController;
 
     @Test
-    void testCreateDeviceAndFetchItByAllMeans() throws DeviceNotFoundException {
+    void testCreateDeviceAndFetchItByAllMeans() throws DeviceNotFoundException, InvalidDeviceStateException {
         List<DeviceResource> foundAllBeforeCreation = deviceController.findAllBy(null, null);
         assertTrue(foundAllBeforeCreation.isEmpty());
 
@@ -57,10 +58,10 @@ class DevicesApplicationIntegrationTests {
 
 
     @Test
-    void testDeviceIsNotFoundAfterDelete() throws DeviceNotFoundException, DeviceNotValidForRequestedChangeException {
+    void testDeviceIsNotFoundAfterDelete() throws DeviceNotFoundException, DeviceNotValidForRequestedChangeException, InvalidDeviceStateException {
         DeviceResource newDevice = createAndFetchDevice();
 
-        deviceController.delete(newDevice.getId());
+        deviceController.delete(UUID.fromString(newDevice.getId()));
 
         List<DeviceResource> foundAllAfterDelete = deviceController.findAllBy(null, null);
         assertTrue(foundAllAfterDelete.isEmpty());
@@ -81,7 +82,7 @@ class DevicesApplicationIntegrationTests {
         DeviceResource created = deviceController.create(deviceData);
         assertEquals(DeviceState.IN_USE, created.getState());
 
-        assertThrows(DeviceNotValidForRequestedChangeException.class, () -> deviceController.delete(created.getId()));
+        assertThrows(DeviceNotValidForRequestedChangeException.class, () -> deviceController.delete(UUID.fromString(created.getId())));
     }
 
     @Test
@@ -93,7 +94,7 @@ class DevicesApplicationIntegrationTests {
         deviceData.setName("New name");
         deviceData.setState(DeviceState.INACTIVE);
 
-        DeviceResource updated = deviceController.update(deviceData, created.getId());
+        DeviceResource updated = deviceController.update(deviceData, UUID.fromString(created.getId()));
 
         assertEquals(created.getId(), updated.getId());
         assertEquals(created.getDateCreated(), updated.getDateCreated());
@@ -102,7 +103,7 @@ class DevicesApplicationIntegrationTests {
         assertEquals(deviceData.getBrand(), updated.getBrand());
         assertEquals(deviceData.getState(), updated.getState());
 
-        DeviceResource foundAfterUpdate = deviceController.findById(created.getId());
+        DeviceResource foundAfterUpdate = deviceController.findById(UUID.fromString(created.getId()));
         assertEquals(deviceData.getName(), foundAfterUpdate.getName());
         assertEquals(deviceData.getBrand(), foundAfterUpdate.getBrand());
         assertEquals(deviceData.getState(), foundAfterUpdate.getState());
@@ -117,7 +118,7 @@ class DevicesApplicationIntegrationTests {
         deviceData.setName("New name");
 
         assertThrows(DeviceNotValidForRequestedChangeException.class,
-                () -> deviceController.update(deviceData, created.getId()));
+                () -> deviceController.update(deviceData, UUID.fromString(created.getId())));
     }
 
     @Test
@@ -129,7 +130,7 @@ class DevicesApplicationIntegrationTests {
         deviceData.setName("New name");
 
         assertThrows(DeviceNotValidForRequestedChangeException.class,
-                () -> deviceController.update(deviceData, created.getId()));
+                () -> deviceController.update(deviceData, UUID.fromString(created.getId())));
     }
 
     @Test
@@ -141,25 +142,25 @@ class DevicesApplicationIntegrationTests {
         deviceData.setBrand("NewBrand");
 
         assertThrows(DeviceNotValidForRequestedChangeException.class,
-                () -> deviceController.update(deviceData, created.getId()));
+                () -> deviceController.update(deviceData, UUID.fromString(created.getId())));
     }
 
     @Test
-    void testCanUpdateStateForDeviceInUse() throws DeviceNotFoundException, DeviceNotValidForRequestedChangeException {
+    void testCanUpdateStateForDeviceInUse() throws DeviceNotFoundException, DeviceNotValidForRequestedChangeException, InvalidDeviceStateException {
         DeviceResource deviceData = TestDataFactory.inUseDeviceResourceForCreation();
         DeviceResource created = deviceController.create(deviceData);
         assertEquals(DeviceState.IN_USE, created.getState());
 
         deviceData.setState(DeviceState.INACTIVE);
 
-        DeviceResource updated = deviceController.update(deviceData, created.getId());
+        DeviceResource updated = deviceController.update(deviceData, UUID.fromString(created.getId()));
         assertEquals(created.getId(), updated.getId());
         assertEquals(created.getDateCreated(), updated.getDateCreated());
         assertEquals(deviceData.getName(), updated.getName());
         assertEquals(deviceData.getBrand(), updated.getBrand());
         assertEquals(DeviceState.INACTIVE, updated.getState());
 
-        DeviceResource foundAfterUpdate = deviceController.findById(created.getId());
+        DeviceResource foundAfterUpdate = deviceController.findById(UUID.fromString(created.getId()));
         assertEquals(DeviceState.INACTIVE, foundAfterUpdate.getState());
 
         List<DeviceResource> devicesInactive = deviceController.findAllBy(null, DeviceState.INACTIVE.toString());
@@ -169,11 +170,11 @@ class DevicesApplicationIntegrationTests {
 
 
     @Test
-    void testPatchMultipleFieldsForAvailableDevice() throws DeviceNotFoundException, DeviceNotValidForRequestedChangeException {
+    void testPatchMultipleFieldsForAvailableDevice() throws DeviceNotFoundException, DeviceNotValidForRequestedChangeException, InvalidDeviceStateException {
         DeviceResource deviceData = TestDataFactory.validDeviceResourceForCreation();
         DeviceResource created = deviceController.create(deviceData);
 
-        DeviceResource patched = deviceController.patch(created.getId(), "NewName", "NewBrand", DeviceState.IN_USE.toString());
+        DeviceResource patched = deviceController.patch(UUID.fromString(created.getId()), "NewName", "NewBrand", DeviceState.IN_USE.toString());
         assertEquals(created.getId(), patched.getId());
         assertEquals(created.getDateCreated(), patched.getDateCreated());
         assertEquals("NewName", patched.getName());
@@ -182,11 +183,11 @@ class DevicesApplicationIntegrationTests {
     }
 
     @Test
-    void testPatchNameForAvailableDevice() throws DeviceNotFoundException, DeviceNotValidForRequestedChangeException {
+    void testPatchNameForAvailableDevice() throws DeviceNotFoundException, DeviceNotValidForRequestedChangeException, InvalidDeviceStateException {
         DeviceResource deviceData = TestDataFactory.validDeviceResourceForCreation();
         DeviceResource created = deviceController.create(deviceData);
 
-        DeviceResource patched = deviceController.patch(created.getId(), "Patched Name", null, null);
+        DeviceResource patched = deviceController.patch(UUID.fromString(created.getId()), "Patched Name", null, null);
         assertEquals(created.getId(), patched.getId());
         assertEquals(created.getDateCreated(), patched.getDateCreated());
         assertEquals("Patched Name", patched.getName());
@@ -195,11 +196,11 @@ class DevicesApplicationIntegrationTests {
     }
 
     @Test
-    void testPatchBrandForAvailableDevice() throws DeviceNotFoundException, DeviceNotValidForRequestedChangeException {
+    void testPatchBrandForAvailableDevice() throws DeviceNotFoundException, DeviceNotValidForRequestedChangeException, InvalidDeviceStateException {
         DeviceResource deviceData = TestDataFactory.validDeviceResourceForCreation();
         DeviceResource created = deviceController.create(deviceData);
 
-        DeviceResource patched = deviceController.patch(created.getId(), null, "Brand2", null);
+        DeviceResource patched = deviceController.patch(UUID.fromString(created.getId()), null, "Brand2", null);
         assertEquals(created.getId(), patched.getId());
         assertEquals(created.getDateCreated(), patched.getDateCreated());
         assertEquals(created.getName(), patched.getName());
@@ -208,11 +209,11 @@ class DevicesApplicationIntegrationTests {
     }
 
     @Test
-    void testPatchStateForAvailableDevice() throws DeviceNotFoundException, DeviceNotValidForRequestedChangeException {
+    void testPatchStateForAvailableDevice() throws DeviceNotFoundException, DeviceNotValidForRequestedChangeException, InvalidDeviceStateException {
         DeviceResource deviceData = TestDataFactory.validDeviceResourceForCreation();
         DeviceResource created = deviceController.create(deviceData);
 
-        DeviceResource patched = deviceController.patch(created.getId(), null, null, DeviceState.INACTIVE.toString());
+        DeviceResource patched = deviceController.patch(UUID.fromString(created.getId()), null, null, DeviceState.INACTIVE.toString());
         assertEquals(created.getId(), patched.getId());
         assertEquals(created.getDateCreated(), patched.getDateCreated());
         assertEquals(created.getName(), patched.getName());
@@ -227,7 +228,7 @@ class DevicesApplicationIntegrationTests {
         assertEquals(DeviceState.IN_USE, created.getState());
 
         assertThrows(DeviceNotValidForRequestedChangeException.class,
-                () -> deviceController.patch(created.getId(), "New name", null, null));
+                () -> deviceController.patch(UUID.fromString(created.getId()), "New name", null, null));
     }
 
     @Test
@@ -237,21 +238,21 @@ class DevicesApplicationIntegrationTests {
         assertEquals(DeviceState.IN_USE, created.getState());
 
         assertThrows(DeviceNotValidForRequestedChangeException.class,
-                () -> deviceController.patch(created.getId(), null, "NewBrand", null));
+                () -> deviceController.patch(UUID.fromString(created.getId()), null, "NewBrand", null));
     }
 
     @Test
-    void testCanPatchStateForDeviceInUse() throws DeviceNotFoundException, DeviceNotValidForRequestedChangeException {
+    void testCanPatchStateForDeviceInUse() throws DeviceNotFoundException, DeviceNotValidForRequestedChangeException, InvalidDeviceStateException {
         DeviceResource deviceData = TestDataFactory.inUseDeviceResourceForCreation();
         DeviceResource created = deviceController.create(deviceData);
         assertEquals(DeviceState.IN_USE, created.getState());
 
-       DeviceResource patched = deviceController.patch(created.getId(), null, null, DeviceState.INACTIVE.toString());
+       DeviceResource patched = deviceController.patch(UUID.fromString(created.getId()), null, null, DeviceState.INACTIVE.toString());
        assertEquals(DeviceState.INACTIVE, patched.getState());
        assertEquals(created.getName(), patched.getName());
        assertEquals(created.getBrand(), patched.getBrand());
 
-        DeviceResource foundAfterPatch = deviceController.findById(created.getId());
+        DeviceResource foundAfterPatch = deviceController.findById(UUID.fromString(created.getId()));
         assertEquals(DeviceState.INACTIVE, foundAfterPatch.getState());
 
         List<DeviceResource> devicesInactive = deviceController.findAllBy(null, DeviceState.INACTIVE.toString());
@@ -262,17 +263,17 @@ class DevicesApplicationIntegrationTests {
 
     @Test
     void testFindByIdForNotFoundDevice() {
-        assertThrows(DeviceNotFoundException.class, () -> deviceController.findById(UUID.randomUUID().toString()));
+        assertThrows(DeviceNotFoundException.class, () -> deviceController.findById(UUID.randomUUID()));
     }
 
     @Test
     void testDeleteForNotFoundDevice() {
-        assertThrows(DeviceNotFoundException.class, () -> deviceController.delete((UUID.randomUUID().toString())));
+        assertThrows(DeviceNotFoundException.class, () -> deviceController.delete((UUID.randomUUID())));
     }
 
     @Test
     void testPatchForNotFoundDevice() {
-        assertThrows(DeviceNotFoundException.class, () -> deviceController.patch(UUID.randomUUID().toString(), "New Name", null, null));
+        assertThrows(DeviceNotFoundException.class, () -> deviceController.patch(UUID.randomUUID(), "New Name", null, null));
     }
 
     private @NonNull DeviceResource createAndFetchDevice() throws DeviceNotFoundException {
@@ -284,7 +285,7 @@ class DevicesApplicationIntegrationTests {
         assertEquals(deviceData.getBrand(), created.getBrand());
         assertEquals(deviceData.getState().toString(), created.getState().toString());
 
-        DeviceResource fetchedById = deviceController.findById(created.getId());
+        DeviceResource fetchedById = deviceController.findById(UUID.fromString(created.getId()));
         assertNotNull(fetchedById);
         assertEquals(fetchedById.getId(), created.getId());
         assertEquals(fetchedById.getName(), created.getName());

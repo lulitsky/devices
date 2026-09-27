@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 import org.ulitzky.devices.dao.DeviceRepository;
 import org.ulitzky.devices.exception.DeviceNotFoundException;
 import org.ulitzky.devices.exception.DeviceNotValidForRequestedChangeException;
+import org.ulitzky.devices.exception.InvalidDeviceStateException;
 import org.ulitzky.devices.model.Device;
 import org.ulitzky.devices.model.enums.DeviceState;
 
@@ -27,29 +28,30 @@ public class DeviceService {
         return deviceRepository.save(device);
     }
 
-    public Device findById(final String deviceId) throws DeviceNotFoundException {
+    public Device findById(final UUID deviceId) throws DeviceNotFoundException {
         try {
-            return deviceRepository.findById(UUID.fromString(deviceId)).orElseThrow();
+            return deviceRepository.findById(deviceId).orElseThrow();
         } catch (NoSuchElementException | IllegalArgumentException e) {
             throw new DeviceNotFoundException("Could not find device with id: " + deviceId);
         }
     }
 
-    public List<Device> findAllBy(final String brand, final String state) {
-        // TODO check that state is valid
-        DeviceState parsedState = state != null ? DeviceState.valueOf(state) : null;
-        if ((brand != null) && (parsedState != null)) {
-            return deviceRepository.findByBrandAndState(brand, parsedState);
+    public List<Device> findAllBy(final String brand, final String state) throws InvalidDeviceStateException {
+        DeviceState deviceState = parseDeviceState(state);
+        if ((brand != null) && (deviceState != null)) {
+            return deviceRepository.findByBrandAndState(brand, deviceState);
         } else if (brand != null) {
             return deviceRepository.findByBrand(brand);
-        } else if (parsedState != null) {
-            return deviceRepository.findByState(parsedState);
+        } else if (deviceState != null) {
+            return deviceRepository.findByState(deviceState);
         } else {
             return deviceRepository.findAll();
         }
     }
 
-    public Device update(final Device updatedDevice, final String deviceId)
+
+
+    public Device update(final Device updatedDevice, final UUID deviceId)
             throws DeviceNotFoundException, DeviceNotValidForRequestedChangeException {
         Device existing = findById(deviceId);
         if ((updatedDevice.getDateCreated() != null) &&
@@ -65,8 +67,8 @@ public class DeviceService {
         return deviceRepository.save(existing);
     }
 
-    public Device patch(final String deviceId, final String name, final String brand, final String state)
-            throws DeviceNotFoundException, DeviceNotValidForRequestedChangeException {
+    public Device patch(final UUID deviceId, final String name, final String brand, final String state)
+            throws DeviceNotFoundException, DeviceNotValidForRequestedChangeException, InvalidDeviceStateException {
         Device existing = findById(deviceId);
 
         if (name != null) {
@@ -78,19 +80,30 @@ public class DeviceService {
             existing.setBrand(brand);
         }
         if (state != null) {
-            // TODO check that state is valid
-            existing.setState(DeviceState.valueOf(state));
+            existing.setState(parseDeviceState(state));
         }
         return deviceRepository.save(existing);
     }
 
-    public void delete(final String deviceId) throws DeviceNotFoundException, DeviceNotValidForRequestedChangeException {
+    public void delete(final UUID deviceId) throws DeviceNotFoundException, DeviceNotValidForRequestedChangeException {
         Device existing = findById(deviceId);
         checkIfChangeIsPossible(existing, deviceId, true);
         deviceRepository.delete(existing);
     }
 
-    private void checkIfChangeIsPossible(final Device existing, final String deviceId, final boolean isChanging)
+    private static DeviceState parseDeviceState(final String stateValue) throws InvalidDeviceStateException {
+        if (stateValue != null) {
+            try {
+                return DeviceState.valueOf(stateValue);
+            } catch (IllegalArgumentException e) {
+                throw new InvalidDeviceStateException("Invalid device state " + stateValue);
+            }
+        } else {
+            return null;
+        }
+    }
+
+    private void checkIfChangeIsPossible(final Device existing, final UUID deviceId, final boolean isChanging)
             throws DeviceNotValidForRequestedChangeException {
         if (isChanging && !existing.isValidForDeletionOrUpdate()) {
             throw new DeviceNotValidForRequestedChangeException(

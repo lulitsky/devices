@@ -9,6 +9,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.ulitzky.devices.dao.DeviceRepository;
 import org.ulitzky.devices.exception.DeviceNotFoundException;
 import org.ulitzky.devices.exception.DeviceNotValidForRequestedChangeException;
+import org.ulitzky.devices.exception.InvalidDeviceStateException;
 import org.ulitzky.devices.model.Device;
 import org.ulitzky.devices.model.enums.DeviceState;
 import org.ulitzky.devices.util.TestDataFactory;
@@ -57,7 +58,7 @@ class DeviceServiceTest {
         when(deviceRepository.findById(device.getId())).thenReturn(Optional.of(device));
 
         // When
-        Device result = deviceService.findById(device.getId().toString());
+        Device result = deviceService.findById(device.getId());
 
         // Then
         assertEquals(device, result);
@@ -70,11 +71,11 @@ class DeviceServiceTest {
         when(deviceRepository.findById(id)).thenReturn(Optional.empty());
 
         // When - Then
-        assertThrows(DeviceNotFoundException.class, () -> deviceService.findById(id.toString()));
+        assertThrows(DeviceNotFoundException.class, () -> deviceService.findById(id));
     }
 
     @Test
-    void findAllByReturnsAllWhenNoFilters() {
+    void findAllByReturnsAllWhenNoFilters() throws InvalidDeviceStateException {
         // Given
         when(deviceRepository.findAll()).thenReturn(List.of(device));
 
@@ -87,7 +88,7 @@ class DeviceServiceTest {
     }
 
     @Test
-    void findAllByBrand() {
+    void findAllByBrand() throws InvalidDeviceStateException {
         // Given
         when(deviceRepository.findByBrand("Samsung")).thenReturn(List.of(device));
 
@@ -100,7 +101,7 @@ class DeviceServiceTest {
     }
 
     @Test
-    void findAllByState() {
+    void findAllByState() throws InvalidDeviceStateException {
         // Given
         when(deviceRepository.findByState(DeviceState.AVAILABLE)).thenReturn(List.of(device));
 
@@ -113,7 +114,7 @@ class DeviceServiceTest {
     }
 
     @Test
-    void findAllByBrandAndState() {
+    void findAllByBrandAndState() throws InvalidDeviceStateException {
         // Given
         when(deviceRepository.findByBrandAndState("Samsung", DeviceState.AVAILABLE)).thenReturn(List.of(device));
 
@@ -136,7 +137,7 @@ class DeviceServiceTest {
         when(deviceRepository.save(device)).thenReturn(device);
 
         // When
-        Device result = deviceService.update(updatedData, updatedData.getId().toString());
+        Device result = deviceService.update(updatedData, updatedData.getId());
 
         // Then
         assertEquals(updatedData.getState(), result.getState());
@@ -149,7 +150,7 @@ class DeviceServiceTest {
         when(deviceRepository.findById(id)).thenReturn(Optional.empty());
 
         // When - Then
-        assertThrows(DeviceNotFoundException.class, () -> deviceService.update(device, id.toString()));
+        assertThrows(DeviceNotFoundException.class, () -> deviceService.update(device, id));
     }
 
     @Test
@@ -163,7 +164,7 @@ class DeviceServiceTest {
 
         // When - Then
         assertThrows(DeviceNotValidForRequestedChangeException.class,
-                () -> deviceService.update(device, device.getId().toString()));
+                () -> deviceService.update(device, device.getId()));
     }
 
 
@@ -178,7 +179,7 @@ class DeviceServiceTest {
 
         // When - Then
         assertThrows(DeviceNotValidForRequestedChangeException.class,
-                () -> deviceService.update(device, device.getId().toString()));
+                () -> deviceService.update(device, device.getId()));
     }
 
     @Test
@@ -194,7 +195,7 @@ class DeviceServiceTest {
 
         // When - Then
         assertThrows(DeviceNotValidForRequestedChangeException.class,
-                () -> deviceService.update(device, device.getId().toString()));
+                () -> deviceService.update(device, device.getId()));
     }
 
 
@@ -208,7 +209,7 @@ class DeviceServiceTest {
         String originalBrand = device.getBrand();
 
         // When
-        Device result = deviceService.patch(device.getId().toString(), "New Name", null, null);
+        Device result = deviceService.patch(device.getId(), "New Name", null, null);
 
         // Then
         assertEquals("New Name", result.getName());
@@ -222,7 +223,7 @@ class DeviceServiceTest {
         when(deviceRepository.findById(id)).thenReturn(Optional.empty());
 
         // When - Then
-        assertThrows(DeviceNotFoundException.class, () -> deviceService.patch(id.toString(), "x", null, null));
+        assertThrows(DeviceNotFoundException.class, () -> deviceService.patch(id, "x", null, null));
     }
 
     @Test
@@ -233,7 +234,7 @@ class DeviceServiceTest {
 
         // When - Then
         assertThrows(DeviceNotValidForRequestedChangeException.class,
-                () -> deviceService.patch(device.getId().toString(), device.getName() + " new", null, null));
+                () -> deviceService.patch(device.getId(), device.getName() + " new", null, null));
     }
 
     @Test
@@ -244,7 +245,7 @@ class DeviceServiceTest {
 
         // When - Then
         assertThrows(DeviceNotValidForRequestedChangeException.class,
-                () -> deviceService.patch(device.getId().toString(), null, device.getBrand() + " new",  null));
+                () -> deviceService.patch(device.getId(), null, device.getBrand() + " new",  null));
     }
 
     @Test
@@ -253,7 +254,7 @@ class DeviceServiceTest {
         when(deviceRepository.findById(device.getId())).thenReturn(Optional.of(device));
 
         // When
-        deviceService.delete(device.getId().toString());
+        deviceService.delete(device.getId());
 
         // Then
         verify(deviceRepository).delete(device);
@@ -266,7 +267,7 @@ class DeviceServiceTest {
         when(deviceRepository.findById(id)).thenReturn(Optional.empty());
 
         // When - Then
-        assertThrows(DeviceNotFoundException.class, () -> deviceService.delete(id.toString()));
+        assertThrows(DeviceNotFoundException.class, () -> deviceService.delete(id));
     }
 
     @Test
@@ -276,6 +277,6 @@ class DeviceServiceTest {
         when(deviceRepository.findById(device.getId())).thenReturn(Optional.of(device));
 
         // When - Then
-        assertThrows(DeviceNotValidForRequestedChangeException.class, () -> deviceService.delete(device.getId().toString()));
+        assertThrows(DeviceNotValidForRequestedChangeException.class, () -> deviceService.delete(device.getId()));
     }
 }

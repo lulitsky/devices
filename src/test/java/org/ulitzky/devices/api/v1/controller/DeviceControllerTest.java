@@ -9,6 +9,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.ulitzky.devices.api.v1.resource.DeviceResource;
 import org.ulitzky.devices.exception.DeviceNotFoundException;
 import org.ulitzky.devices.exception.DeviceNotValidForRequestedChangeException;
+import org.ulitzky.devices.exception.InvalidDeviceStateException;
 import org.ulitzky.devices.model.Device;
 import org.ulitzky.devices.service.DeviceService;
 import org.ulitzky.devices.service.mapper.DeviceMapperImpl;
@@ -59,10 +60,10 @@ class DeviceControllerTest {
     void findByIdReturnsResource() throws DeviceNotFoundException {
         // Given
         Device device = TestDataFactory.validDevice();
-        when(deviceService.findById(device.getId().toString())).thenReturn(device);
+        when(deviceService.findById(device.getId())).thenReturn(device);
 
         // When
-        DeviceResource result = deviceController.findById(device.getId().toString());
+        DeviceResource result = deviceController.findById(device.getId());
 
         // Then
         assertEquals(device.getId().toString(), result.getId());
@@ -70,14 +71,14 @@ class DeviceControllerTest {
 
     @Test
     void findByIdPropagatesException() throws DeviceNotFoundException {
-        String id = UUID.randomUUID().toString();
+        UUID id = UUID.randomUUID();
         when(deviceService.findById(id)).thenThrow(new DeviceNotFoundException("not found"));
 
         assertThrows(DeviceNotFoundException.class, () -> deviceController.findById(id));
     }
 
     @Test
-    void findAllByReturnsListOfResources() {
+    void findAllByReturnsListOfResources() throws InvalidDeviceStateException {
         // Given
         Device device1 = TestDataFactory.validDevice();
         Device device2 = TestDataFactory.validDevice();
@@ -96,14 +97,14 @@ class DeviceControllerTest {
     void updateDelegatesToService() throws Exception {
         // Given
         DeviceResource requestData = TestDataFactory.validDeviceResource();
-        when(deviceService.update(any(Device.class), eq(requestData.getId()))).thenReturn(TestDataFactory.validDevice());
+        when(deviceService.update(any(Device.class), eq(UUID.fromString(requestData.getId())))).thenReturn(TestDataFactory.validDevice());
         ArgumentCaptor<Device> captor = ArgumentCaptor.forClass(Device.class);
 
         // When
-        deviceController.update(requestData, requestData.getId());
+        deviceController.update(requestData, UUID.fromString(requestData.getId()));
 
         // Then
-        verify(deviceService).update(captor.capture(), eq(requestData.getId()));
+        verify(deviceService).update(captor.capture(), eq(UUID.fromString(requestData.getId())));
         Device captured = captor.getValue();
         assertEquals(requestData.getName(), captured.getName());
         assertEquals(requestData.getBrand(), captured.getBrand());
@@ -112,31 +113,31 @@ class DeviceControllerTest {
     @Test
     void updateDeviceNotFoundException() throws Exception {
         DeviceResource requestData = TestDataFactory.validDeviceResource();
-        when(deviceService.update(any(Device.class), eq(requestData.getId())))
+        when(deviceService.update(any(Device.class), eq(UUID.fromString(requestData.getId()))))
                 .thenThrow(new DeviceNotFoundException("device not found"));
 
         assertThrows(DeviceNotFoundException.class,
-                () -> deviceController.update(requestData, requestData.getId()));
+                () -> deviceController.update(requestData, UUID.fromString(requestData.getId())));
     }
 
     @Test
     void updateDeviceNotValidForUpdateException() throws Exception {
         DeviceResource requestData = TestDataFactory.validDeviceResource();
-        when(deviceService.update(any(Device.class), eq(requestData.getId())))
+        when(deviceService.update(any(Device.class), eq(UUID.fromString(requestData.getId()))))
                 .thenThrow(new DeviceNotValidForRequestedChangeException("cannot update device in use"));
 
         assertThrows(DeviceNotValidForRequestedChangeException.class,
-                () -> deviceController.update(requestData, requestData.getId()));
+                () -> deviceController.update(requestData, UUID.fromString(requestData.getId())));
     }
 
     @Test
     void patchDelegatesToService() throws Exception {
         // Given
         Device device = TestDataFactory.validDevice();
-        when(deviceService.patch(device.getId().toString(), "New Device", null, null)).thenReturn(device);
+        when(deviceService.patch(device.getId(), "New Device", null, null)).thenReturn(device);
 
         // When
-        DeviceResource result = deviceController.patch(device.getId().toString(), "New Device", null, null);
+        DeviceResource result = deviceController.patch(device.getId(), "New Device", null, null);
 
         // Then
         assertEquals(device.getId().toString(), result.getId());
@@ -148,16 +149,16 @@ class DeviceControllerTest {
         Device device = TestDataFactory.validDevice();
 
         // When
-        deviceController.delete(device.getId().toString());
+        deviceController.delete(device.getId());
 
         // Then
-        verify(deviceService).delete(device.getId().toString());
+        verify(deviceService).delete(device.getId());
     }
 
     @Test
     void deletePropagatesDeviceNotFoundException() throws Exception {
         // Given
-        String deviceID = UUID.randomUUID().toString();
+        UUID deviceID = UUID.randomUUID();
         doThrow(new DeviceNotFoundException("Device not found")).when(deviceService).delete(deviceID);
 
         // When - Then
@@ -167,7 +168,7 @@ class DeviceControllerTest {
     @Test
     void deletePropagatesDeviceCannotBeUpdatedException() throws Exception {
         // Given
-        String deviceID = UUID.randomUUID().toString();
+        UUID deviceID = UUID.randomUUID();
         doThrow(new DeviceNotValidForRequestedChangeException("Device is in use")).when(deviceService).delete(deviceID);
 
         // When - Then
