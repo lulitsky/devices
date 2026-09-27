@@ -20,6 +20,15 @@ Keep this file in sync: after any change to endpoints, architecture, test covera
 ./gradlew bootRun                # Start the app (http://localhost:8080)
 ```
 
+- `Dockerfile` — multi-stage build; `eclipse-temurin:21-jdk` builds the boot jar via the Gradle
+  wrapper, `eclipse-temurin:21-jre` runs it (`ENTRYPOINT java -jar app.jar`), exposing port 8080.
+  `.dockerignore` excludes `build/`, `.gradle/`, `.git/`, `.idea/`. Build/run with:
+  ```bash
+  docker build -t device-service .
+  docker run -p 8080:8080 device-service
+  ```
+- `docker-compose.yml` — single `device-service` service building from the `Dockerfile`, mapping
+  port 8080. Run with `docker compose up --build`.
 - H2 console: `http://localhost:8080/h2-console` (JDBC URL `jdbc:h2:mem:testdb`, user `sa`, no
   password) — `spring.h2.console.enabled=true` in `application.properties`.
 - Swagger UI: `http://localhost:8080/swagger-ui/index.html` (raw OpenAPI JSON at
