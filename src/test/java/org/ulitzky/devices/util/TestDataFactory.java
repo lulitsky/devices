@@ -38,9 +38,7 @@ public final class TestDataFactory {
     }
 
     public static DeviceResource inUseDeviceResourceForCreation() {
-        DeviceResource resource = new DeviceResource();
-        resource.setName("Galaxy S24");
-        resource.setBrand("Samsung");
+        DeviceResource resource = validDeviceResourceForCreation();
         resource.setState(DeviceState.IN_USE);
         return resource;
     }

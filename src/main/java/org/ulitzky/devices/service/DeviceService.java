@@ -2,7 +2,6 @@ package org.ulitzky.devices.service;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 import org.ulitzky.devices.dao.DeviceRepository;
 import org.ulitzky.devices.exception.DeviceNotFoundException;
 import org.ulitzky.devices.exception.DeviceNotValidForRequestedChangeException;
@@ -38,12 +37,13 @@ public class DeviceService {
 
     public List<Device> findAllBy(final String brand, final String state) {
         // TODO check that state is valid
-        if ((brand != null) && (state != null)) {
-            return deviceRepository.findByBrandAndState(brand, DeviceState.valueOf(state));
+        DeviceState parsedState = state != null ? DeviceState.valueOf(state) : null;
+        if ((brand != null) && (parsedState != null)) {
+            return deviceRepository.findByBrandAndState(brand, parsedState);
         } else if (brand != null) {
             return deviceRepository.findByBrand(brand);
-        } else if (state != null) {
-            return deviceRepository.findByState(DeviceState.valueOf(state));
+        } else if (parsedState != null) {
+            return deviceRepository.findByState(parsedState);
         } else {
             return deviceRepository.findAll();
         }
@@ -57,10 +57,8 @@ public class DeviceService {
                         .equals(existing.getDateCreated().truncatedTo(ChronoUnit.MINUTES)))) {
             throw new DeviceNotValidForRequestedChangeException("Device created time cannot be updated.");
         }
-        if ((!existing.isValidForDeletionOrUpdate()) &&
-                ((!updatedDevice.getName().equals(existing.getName())) || (!updatedDevice.getBrand().equals(existing.getBrand())))){
-            throw new DeviceNotValidForRequestedChangeException("Device with id " + deviceId + " is not valid for the requested change.");
-        }
+        checkIfChangeIsPossible(existing, deviceId, !updatedDevice.getName().equals(existing.getName())
+                || !updatedDevice.getBrand().equals(existing.getBrand()));
         existing.setName(updatedDevice.getName());
         existing.setBrand(updatedDevice.getBrand());
         existing.setState(updatedDevice.getState());
@@ -72,18 +70,12 @@ public class DeviceService {
         Device existing = findById(deviceId);
 
         if (name != null) {
-            if (!existing.isValidForDeletionOrUpdate() && !name.equals(existing.getName())) {
-                throw new DeviceNotValidForRequestedChangeException("Cannot update name for device in use");
-            } else {
-                existing.setName(name);
-            }
+            checkIfChangeIsPossible(existing, deviceId, !name.equals(existing.getName()));
+            existing.setName(name);
         }
         if (brand != null) {
-            if (!existing.isValidForDeletionOrUpdate() && !brand.equals(existing.getBrand())) {
-                throw new DeviceNotValidForRequestedChangeException("Cannot update brand for device in use");
-            } else {
-                existing.setBrand(brand);
-            }
+            checkIfChangeIsPossible(existing, deviceId, !brand.equals(existing.getBrand()));
+            existing.setBrand(brand);
         }
         if (state != null) {
             // TODO check that state is valid
@@ -94,9 +86,15 @@ public class DeviceService {
 
     public void delete(final String deviceId) throws DeviceNotFoundException, DeviceNotValidForRequestedChangeException {
         Device existing = findById(deviceId);
-        if (!existing.isValidForDeletionOrUpdate()) {
-            throw new DeviceNotValidForRequestedChangeException("Device with id " + deviceId + " is not valid for deletion.");
-        }
+        checkIfChangeIsPossible(existing, deviceId, true);
         deviceRepository.delete(existing);
+    }
+
+    private void checkIfChangeIsPossible(final Device existing, final String deviceId, final boolean isChanging)
+            throws DeviceNotValidForRequestedChangeException {
+        if (isChanging && !existing.isValidForDeletionOrUpdate()) {
+            throw new DeviceNotValidForRequestedChangeException(
+                    "Device with id " + deviceId + " is not valid for the requested change.");
+        }
     }
 }

@@ -4,7 +4,7 @@ WORKDIR /workspace
 COPY gradlew ./
 COPY gradle ./gradle
 COPY build.gradle.kts settings.gradle.kts ./
-RUN ./gradlew --version
+RUN ./gradlew dependencies --no-daemon
 
 COPY src ./src
 RUN ./gradlew bootJar --no-daemon

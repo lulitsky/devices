@@ -17,7 +17,6 @@ import org.ulitzky.devices.util.TestDataFactory;
 import java.util.List;
 import java.util.UUID;
 
-import static aQute.bnd.annotation.headers.Category.device;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
